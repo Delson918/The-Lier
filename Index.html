@@ -16,6 +16,7 @@
       padding: 20px; 
       min-height: 100vh;
       box-sizing: border-box;
+      position: relative;
     }
     #pageA {
       background-color: #333;
@@ -42,6 +43,10 @@
     }
     .button:hover {
       background-color: #666;
+    }
+    .button:disabled {
+      background-color: #333;
+      cursor: not-allowed;
     }
     .topbar { 
       display: flex; 
@@ -71,13 +76,39 @@
     .input-cards { 
       display: flex; 
       gap: 10px; 
-      margin-bottom: 10px; 
+      margin-bottom: 10px;
+      flex-wrap: wrap;
     }
     .card { 
       width: 40px; 
       height: 60px; 
       border: 1px solid #666; 
       display: inline-block; 
+      background-color: rgba(255,255,255,0.1);
+      cursor: pointer;
+      position: relative;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+    }
+    .card.selected {
+      border: 2px solid gold;
+      box-shadow: 0 0 10px gold;
+    }
+    .card.submitted {
+      opacity: 0.5;
+      filter: brightness(0.5);
+      cursor: not-allowed;
+    }
+    .result-card {
+      display: inline-block;
+      width: 30px;
+      height: 45px;
+      border: 1px solid #666;
+      margin: 2px;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
       background-color: rgba(255,255,255,0.1);
     }
     select, input {
@@ -92,6 +123,25 @@
     }
     #seedOutput {
       width: 120px;
+    }
+    .version {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      font-size: 12px;
+      color: #999;
+    }
+    .gun-image {
+      width: 30px;
+      height: 30px;
+      vertical-align: middle;
+      margin-right: 5px;
+    }
+    .ammo-section {
+      margin-top: 20px;
+    }
+    .result-row {
+      margin: 5px 0;
     }
   </style>
 </head>
@@ -137,6 +187,8 @@
     <br><br>
     <button class="button" onclick="enterGame()">Enter the Game</button>
   </div>
+  
+  <div class="version">v0.0.4</div>
 </div>
 
 <!-- Page B -->
@@ -154,25 +206,25 @@
   <div>
     <h3>Results:</h3>
     <div class="results" id="resultsBox">
-      <div>1. [ ] [ ] [ ] [ ]</div>
-      <div>2. [ ] [ ] [ ] [ ]</div>
-      <div>3. [ ] [ ] [ ] [ ]</div>
-      <div>4. [ ] [ ] [ ] [ ]</div>
-      <div>5. [ ] [ ] [ ] [ ]</div>
+      <div class="result-row">1. <span id="result1"></span></div>
+      <div class="result-row">2. <span id="result2"></span></div>
+      <div class="result-row">3. <span id="result3"></span></div>
+      <div class="result-row">4. <span id="result4"></span></div>
+      <div class="result-row">5. <span id="result5"></span></div>
     </div>
   </div>
   
-  <div class="input-cards">
-    <div class="card"></div>
-    <div class="card"></div>
-    <div class="card"></div>
-    <div class="card"></div>
-    <div class="card"></div>
-    <button class="button">Submit</button>
+  <div class="box">
+    <h3>Your Hand</h3>
+    <div class="input-cards" id="handCards">
+      <!-- Hand cards will be dynamically added here -->
+    </div>
+    <button class="button" id="submitButton" onclick="submitCards()" disabled>Submit</button>
   </div>
   
-  <div>
-    <span>(gun image)</span> <span id="ammoCount">0 / 6</span><br>
+  <div class="ammo-section">
+    <img src="https://raw.githubusercontent.com/Delson918/The-Lier/main/gun.png" alt="Gun" class="gun-image">
+    <span id="ammoCount">0 / 6</span><br>
     <button class="button" onclick="reload()">Reload</button>
     <button class="button" onclick="shoot()">Shoot</button>
   </div>
@@ -182,6 +234,140 @@
   let currentSeed = "";
   let currentPlayer = "";
   let ammo = 0;
+  let selectedCards = [];
+  let submittedCards = [];
+
+
+  // Updated card configuration for 14 cards:
+  // 4 Jokers (J1-J4), 4 Queens (Q1-Q4), 4 Kings (K1-K4), 1 Joker, 1 Ace
+  const cardImages = {
+    // Jokers
+    'J1': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/J1.png',
+    'J2': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/J2.png',
+    'J3': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/J3.png',
+    'J4': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/J4.png',
+    
+    // Queens
+    'Q1': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/Q1.png',
+    'Q2': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/Q2.png',
+    'Q3': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/Q3.png',
+    'Q4': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/Q4.png',
+    
+    // Kings
+    'K1': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/K1.png',
+    'K2': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/K2.png',
+    'K3': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/K3.png',
+    'K4': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/K4.png',
+    
+    // Special cards
+    'Joker': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/Joker.png',
+    'A': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/A.png'
+  };
+
+  // All valid card types
+  const validCards = Object.keys(cardImages);
+
+  // Initialize game with sample cards (replace with actual game logic)
+  function initializeGame() {
+    // Clear previous state
+    document.getElementById('handCards').innerHTML = '';
+    selectedCards = [];
+    submittedCards = [];
+    
+    // Clear results (show empty slots)
+    for (let i = 1; i <= 5; i++) {
+      document.getElementById(`result${i}`).innerHTML = '';
+    }
+    
+    // Deal sample hand (5 random cards from validCards)
+    const hand = [];
+    for (let i = 0; i < 5; i++) {
+      const randomCard = validCards[Math.floor(Math.random() * validCards.length)];
+      hand.push(randomCard);
+    }
+    
+    // Create hand cards
+    hand.forEach((card, index) => {
+      const cardElement = document.createElement('div');
+      cardElement.className = 'card';
+      cardElement.dataset.index = index;
+      cardElement.dataset.value = card;
+      cardElement.style.backgroundImage = `url(${cardImages[card]})`;
+      cardElement.onclick = () => toggleCardSelection(index);
+      document.getElementById('handCards').appendChild(cardElement);
+    });
+    
+    // Update submit button
+    updateSubmitButton();
+  }
+
+  function toggleCardSelection(index) {
+    const cardElement = document.querySelector(`.card[data-index="${index}"]`);
+    
+    // Skip if card is already submitted
+    if (cardElement.classList.contains('submitted')) return;
+    
+    // Toggle selection
+    if (selectedCards.includes(index)) {
+      // Deselect
+      selectedCards = selectedCards.filter(i => i !== index);
+      cardElement.classList.remove('selected');
+    } else {
+      // Select (but max 3)
+      if (selectedCards.length < 3) {
+        selectedCards.push(index);
+        cardElement.classList.add('selected');
+      }
+    }
+    
+    updateSubmitButton();
+  }
+
+  function updateSubmitButton() {
+    const submitButton = document.getElementById('submitButton');
+    submitButton.disabled = selectedCards.length === 0;
+  }
+
+  function submitCards() {
+    if (selectedCards.length === 0 || selectedCards.length > 3) return;
+    
+    // Get selected card values
+    const selectedValues = selectedCards.map(index => {
+      return document.querySelector(`.card[data-index="${index}"]`).dataset.value;
+    });
+    
+    // Mark cards as submitted
+    selectedCards.forEach(index => {
+      const cardElement = document.querySelector(`.card[data-index="${index}"]`);
+      cardElement.classList.add('submitted');
+      cardElement.classList.remove('selected');
+      submittedCards.push(index);
+    });
+    
+    // Add to results (find next empty slot)
+    for (let i = 1; i <= 5; i++) {
+      const resultSlot = document.getElementById(`result${i}`);
+      if (resultSlot.innerHTML === '') {
+        resultSlot.innerHTML = selectedValues.map(value => 
+          `<div class="result-card" style="background-image: url(${cardImages[value]})"></div>`
+        ).join('');
+        break;
+      }
+    }
+    
+    // Scroll to bottom of results
+    const resultsBox = document.getElementById('resultsBox');
+    resultsBox.scrollTop = resultsBox.scrollHeight;
+    
+    // Clear selection
+    selectedCards = [];
+    updateSubmitButton();
+    
+    // Check if all cards submitted
+    if (submittedCards.length >= 5) {
+      document.getElementById('submitButton').disabled = true;
+    }
+  }
 
   function generateSeed() {
     let numPlayers = document.getElementById("numPlayers").value;
@@ -221,6 +407,9 @@
     currentPlayer = playerNum;
     document.getElementById("pageA").classList.remove("active");
     document.getElementById("pageB").classList.add("active");
+    
+    // Initialize game when entering
+    initializeGame();
   }
 
   function toggleMenu() {
