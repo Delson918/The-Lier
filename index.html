@@ -10,7 +10,7 @@
       padding: 0; 
       background-color: #222;
       color: #eee;
-    } 
+    }
     .page { 
       display: none; 
       padding: 20px; 
@@ -188,7 +188,7 @@
     <button class="button" onclick="enterGame()">Enter the Game</button>
   </div>
   
-  <div class="version">v0.0.4</div>
+  <div class="version">v0.1.3</div>
 </div>
 
 <!-- Page B -->
@@ -236,10 +236,9 @@
   let ammo = 0;
   let selectedCards = [];
   let submittedCards = [];
-
-
-  // Updated card configuration for 14 cards:
-  // 4 Jokers (J1-J4), 4 Queens (Q1-Q4), 4 Kings (K1-K4), 1 Joker, 1 Ace
+  let submissionGroups = [];
+  
+  // Card configuration
   const cardImages = {
     // Jokers
     'J1': 'https://raw.githubusercontent.com/Delson918/The-Lier/main/J1.png',
@@ -267,23 +266,152 @@
   // All valid card types
   const validCards = Object.keys(cardImages);
 
-  // Initialize game with sample cards (replace with actual game logic)
-  function initializeGame() {
+  // Base64 encode with URI-safe characters
+  function encodeSeed(seed) {
+    return btoa(unescape(encodeURIComponent(seed))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, ''));
+  }
+
+  // Base64 decode with URI-safe characters
+  function decodeSeed(encoded) {
+    // Add padding if needed
+    encoded = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = encoded.length % 4;
+    if (pad) {
+      if (pad === 1) {
+        throw new Error('Invalid Base64 string');
+      }
+      encoded += new Array(5-pad).join('=');
+    }
+    
+    try {
+      return decodeURIComponent(escape(atob(encoded)));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Generate deck based on number of players
+  function generateDeck(numPlayers) {
+    const deck = [];
+    
+    // Add J, Q, K cards (4 types each) x2 x NOP
+    const jqkTypes = ['J', 'Q', 'K'];
+    jqkTypes.forEach(type => {
+      for (let i = 1; i <= 4; i++) { // 4 types of each
+        for (let j = 0; j < 2 * numPlayers; j++) { // x2 x NOP
+          deck.push(`${type}${i}`);
+        }
+      }
+    });
+    
+    // Add Joker cards (NOP / 2 rounded down)
+    const jokerCount = Math.floor(numPlayers / 2);
+    for (let i = 0; i < jokerCount; i++) {
+      deck.push('Joker');
+    }
+    
+    // Add Ace cards (NOP)
+    for (let i = 0; i < numPlayers; i++) {
+      deck.push('A');
+    }
+    
+    return deck;
+  }
+
+  // Shuffle deck using Fisher-Yates algorithm
+  function shuffleDeck(deck) {
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    return deck;
+  }
+
+  // Deal cards to players
+  function dealCards(deck, numPlayers) {
+    const playersHands = Array(numPlayers).fill().map(() => []);
+    let currentPlayer = 0;
+    
+    // Deal until each player has 5 cards
+    for (let i = 0; i < numPlayers * 5; i++) {
+      if (deck.length === 0) break; // In case deck is exhausted (shouldn't happen)
+      playersHands[currentPlayer].push(deck.pop());
+      currentPlayer = (currentPlayer + 1) % numPlayers;
+    }
+    
+    return playersHands;
+  }
+
+  // Generate seed from players' hands
+  function generateSeedFromHands(playersHands) {
+    // Create a string representation of all hands
+    const handsString = playersHands.map(hand => hand.join(',')).join('|');
+    
+    // Create a checksum to verify seed integrity
+    const checksum = handsString.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    
+    // Combine with number of players and return
+    return `${playersHands.length}-${checksum}-${handsString}`;
+  }
+
+  // Parse seed to get players' hands
+  function parseSeed(seed) {
+    // First decode the Base64
+    const decodedSeed = decodeSeed(seed);
+    if (!decodedSeed) return null;
+    
+    const parts = decodedSeed.split('-');
+    if (parts.length < 3) return null;
+    
+    const numPlayers = parseInt(parts[0]);
+    const checksum = parseInt(parts[1]);
+    const handsString = parts.slice(2).join('-');
+    
+    // Verify checksum
+    const calculatedChecksum = handsString.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    if (checksum !== calculatedChecksum) return null;
+    
+    // Parse hands
+    const hands = handsString.split('|').map(hand => hand.split(','));
+    
+    return {
+      numPlayers,
+      hands
+    };
+  }
+
+  function generateSeed() {
+    const numPlayers = parseInt(document.getElementById("numPlayers").value);
+    if (!numPlayers || numPlayers < 2 || numPlayers > 8) {
+      alert("Please select number of players between 2-8!");
+      return;
+    }
+
+    // Generate and shuffle deck
+    const deck = shuffleDeck(generateDeck(numPlayers));
+    
+    // Deal cards to players
+    const playersHands = dealCards(deck, numPlayers);
+    
+    // Generate seed from players' hands and encode it
+    const rawSeed = generateSeedFromHands(playersHands);
+    currentSeed = encodeSeed(rawSeed);
+    document.getElementById("seedOutput").value = currentSeed;
+  }
+
+  // Initialize game with specific hand
+  function initializeGameWithHand(hand) {
     // Clear previous state
     document.getElementById('handCards').innerHTML = '';
     selectedCards = [];
-    submittedCards = [];
+    submissionGroups = [];
     
     // Clear results (show empty slots)
     for (let i = 1; i <= 5; i++) {
       document.getElementById(`result${i}`).innerHTML = '';
-    }
-    
-    // Deal sample hand (5 random cards from validCards)
-    const hand = [];
-    for (let i = 0; i < 5; i++) {
-      const randomCard = validCards[Math.floor(Math.random() * validCards.length)];
-      hand.push(randomCard);
     }
     
     // Create hand cards
@@ -297,86 +425,42 @@
       document.getElementById('handCards').appendChild(cardElement);
     });
     
-    // Update submit button
-    updateSubmitButton();
-  }
-
-  function toggleCardSelection(index) {
-    const cardElement = document.querySelector(`.card[data-index="${index}"]`);
-    
-    // Skip if card is already submitted
-    if (cardElement.classList.contains('submitted')) return;
-    
-    // Toggle selection
-    if (selectedCards.includes(index)) {
-      // Deselect
-      selectedCards = selectedCards.filter(i => i !== index);
-      cardElement.classList.remove('selected');
-    } else {
-      // Select (but max 3)
-      if (selectedCards.length < 3) {
-        selectedCards.push(index);
-        cardElement.classList.add('selected');
-      }
-    }
-    
-    updateSubmitButton();
-  }
-
-  function updateSubmitButton() {
-    const submitButton = document.getElementById('submitButton');
-    submitButton.disabled = selectedCards.length === 0;
-  }
-
-  function submitCards() {
-    if (selectedCards.length === 0 || selectedCards.length > 3) return;
-    
-    // Get selected card values
-    const selectedValues = selectedCards.map(index => {
-      return document.querySelector(`.card[data-index="${index}"]`).dataset.value;
-    });
-    
-    // Mark cards as submitted
-    selectedCards.forEach(index => {
+    function toggleCardSelection(index) {
+      console.log('Toggling card selection:', index); // Debug log
       const cardElement = document.querySelector(`.card[data-index="${index}"]`);
-      cardElement.classList.add('submitted');
-      cardElement.classList.remove('selected');
-      submittedCards.push(index);
-    });
-    
-    // Add to results (find next empty slot)
-    for (let i = 1; i <= 5; i++) {
-      const resultSlot = document.getElementById(`result${i}`);
-      if (resultSlot.innerHTML === '') {
-        resultSlot.innerHTML = selectedValues.map(value => 
-          `<div class="result-card" style="background-image: url(${cardImages[value]})"></div>`
-        ).join('');
-        break;
-      }
-    }
-    
-    // Scroll to bottom of results
-    const resultsBox = document.getElementById('resultsBox');
-    resultsBox.scrollTop = resultsBox.scrollHeight;
-    
-    // Clear selection
-    selectedCards = [];
-    updateSubmitButton();
-    
-    // Check if all cards submitted
-    if (submittedCards.length >= 5) {
-      document.getElementById('submitButton').disabled = true;
-    }
-  }
 
-  function generateSeed() {
-    let numPlayers = document.getElementById("numPlayers").value;
-    if (!numPlayers) {
-      alert("Please select number of players!");
-      return;
+      // Skip if card is already submitted
+      if (cardElement.classList.contains('submitted')) {
+        console.log('Card already submitted, skipping');
+        return;
+      }
+
+      // Toggle selection
+      if (selectedCards.includes(index)) {
+        // Deselect
+        selectedCards = selectedCards.filter(i => i !== index);
+        cardElement.classList.remove('selected');
+        console.log('Card deselected:', index);
+      } else {
+        // Select (but max 3)
+        if (selectedCards.length < 3) {
+          selectedCards.push(index);
+          cardElement.classList.add('selected');
+          console.log('Card selected:', index);
+        } else {
+          console.log('Maximum 3 cards can be selected');
+        }
+      }
+
+      // Update submit button
+      updateSubmitButton();
     }
-    currentSeed = Math.random().toString(36).substring(2, 8).toUpperCase() + "-" + numPlayers;
-    document.getElementById("seedOutput").value = currentSeed;
+
+    function updateSubmitButton() {
+      const submitButton = document.getElementById('submitButton');
+      submitButton.disabled = selectedCards.length === 0;
+      console.log('Submit button updated, disabled:', submitButton.disabled);
+    }
   }
 
   function copySeed() {
@@ -390,16 +474,77 @@
     alert("Seed copied: " + seed.value);
   }
 
+  function submitCards() {
+      if (selectedCards.length === 0) {
+          alert("Please select at least one card to submit!");
+          return;
+      }
+
+      // Get the hand cards container
+      const handCards = document.getElementById('handCards');
+      const cards = handCards.querySelectorAll('.card');
+  
+      // Create a new submission group
+      const newSubmission = [];
+    
+      // Mark selected cards as submitted
+      selectedCards.forEach(index => {
+          const card = cards[index];
+          card.classList.add('submitted');
+          card.classList.remove('selected');
+          newSubmission.push(card.dataset.value);
+      });
+
+      // Add the new submission to our groups
+      submissionGroups.push(newSubmission);
+
+      // Update results display
+      updateResults();
+
+      // Clear selection
+      selectedCards = [];
+      document.getElementById('submitButton').disabled = true;
+  }
+
+  function updateResults() {
+      // Clear all results first
+      for (let i = 1; i <= 5; i++) {
+          document.getElementById(`result${i}`).innerHTML = '';
+      }
+
+      // Display submitted cards
+      submissionGroups.forEach((group, groupIndex) => {
+          if (groupIndex < 5) { // Only show up to 5 submissions
+              const resultSpan = document.getElementById(`result${groupIndex + 1}`);
+            
+              // Add each card in the group
+              group.forEach(card => {
+                  const cardElement = document.createElement('div');
+                  cardElement.className = 'result-card';
+                  cardElement.style.backgroundImage = `url(${cardImages[card]})`;
+                  resultSpan.appendChild(cardElement);
+              });
+          }
+      });
+  }
+
   function enterGame() {
-    let seedVal = document.getElementById("seedInput").value.trim();
-    let playerNum = document.getElementById("playerNumber").value;
+    const seedVal = document.getElementById("seedInput").value.trim();
+    const playerNum = parseInt(document.getElementById("playerNumber").value);
     
     if (!seedVal) {
       alert("Please enter a seed!");
       return;
     }
-    if (!playerNum) {
-      alert("Please select your player position!");
+    if (!playerNum || playerNum < 1 || playerNum > 8) {
+      alert("Please select a valid player position (1-8)!");
+      return;
+    }
+    
+    // Parse seed (which will decode the Base64)
+    const seedData = parseSeed(seedVal);
+    if (!seedData || playerNum > seedData.numPlayers) {
+      alert("Invalid seed or player position!");
       return;
     }
     
@@ -408,8 +553,8 @@
     document.getElementById("pageA").classList.remove("active");
     document.getElementById("pageB").classList.add("active");
     
-    // Initialize game when entering
-    initializeGame();
+    // Initialize game with the specific player's hand
+    initializeGameWithHand(seedData.hands[playerNum - 1]);
   }
 
   function toggleMenu() {
