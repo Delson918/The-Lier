@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+  <title>The Lier</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      margin: 0; 
+      padding: 0; 
+      background-color: #222;
+      color: #eee;
+    }
+    .page { 
+      display: none; 
+      padding: 20px; 
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+    #pageA {
+      background-color: #333;
+    }
+    #pageB {
+      background-color: #444;
+    }
+    .active { display: block; }
+    .box { 
+      border: 1px solid #666; 
+      padding: 15px; 
+      margin: 15px 0; 
+      background-color: rgba(0,0,0,0.3);
+      border-radius: 5px;
+    }
+    .button { 
+      padding: 8px 15px; 
+      margin: 5px; 
+      background-color: #555;
+      color: white;
+      border: 1px solid #777;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .button:hover {
+      background-color: #666;
+    }
+    .topbar { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      border-bottom: 1px solid #666; 
+      padding: 10px; 
+    }
+    .results { 
+      height: 200px; 
+      overflow-y: auto; 
+      border: 1px solid #666; 
+      padding: 10px; 
+      margin-bottom: 10px; 
+      background-color: rgba(0,0,0,0.2);
+    }
+    .hidden { display: none; }
+    .quit-menu { 
+      position: absolute; 
+      top: 40px; 
+      right: 20px; 
+      border: 1px solid #666; 
+      background: #333; 
+      padding: 10px; 
+      z-index: 100;
+    }
+    .input-cards { 
+      display: flex; 
+      gap: 10px; 
+      margin-bottom: 10px; 
+    }
+    .card { 
+      width: 40px; 
+      height: 60px; 
+      border: 1px solid #666; 
+      display: inline-block; 
+      background-color: rgba(255,255,255,0.1);
+    }
+    select, input {
+      padding: 5px;
+      background-color: #444;
+      color: white;
+      border: 1px solid #666;
+      border-radius: 3px;
+    }
+    h2, h3 {
+      color: #ddd;
+    }
+    #seedOutput {
+      width: 120px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Page A -->
+<div id="pageA" class="page active">
+  <h2>THE LIER</h2>
+  
+  <div class="box">
+    <h3>Generate seed</h3>
+    Number of players:
+    <select id="numPlayers" required>
+      <option value="" selected disabled>Please Select</option>
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+      <option value="6">6</option>
+      <option value="7">7</option>
+      <option value="8">8</option>
+    </select>
+    <button class="button" onclick="generateSeed()">Generate</button><br>
+    Seed: <input type="text" id="seedOutput" readonly>
+    <button class="button" onclick="copySeed()">Copy</button>
+  </div>
+  
+  <div class="box">
+    <h3>Enter the seed</h3>
+    Seed: <input type="text" id="seedInput"><br><br>
+    I am the 
+    <select id="playerNumber" required>
+      <option value="" selected disabled>Please Select</option>
+      <option value="1">1st</option>
+      <option value="2">2nd</option>
+      <option value="3">3rd</option>
+      <option value="4">4th</option>
+      <option value="5">5th</option>
+      <option value="6">6th</option>
+      <option value="7">7th</option>
+      <option value="8">8th</option>
+    </select> player
+    <br><br>
+    <button class="button" onclick="enterGame()">Enter the Game</button>
+  </div>
+</div>
+
+<!-- Page B -->
+<div id="pageB" class="page">
+  <div class="topbar">
+    <h2>THE LIER</h2>
+    <div>
+      <button class="button" onclick="toggleMenu()">...</button>
+      <div id="quitMenu" class="quit-menu hidden">
+        <button class="button" onclick="quitGame()">Quit the game</button>
+      </div>
+    </div>
+  </div>
+  
+  <div>
+    <h3>Results:</h3>
+    <div class="results" id="resultsBox">
+      <div>1. [ ] [ ] [ ] [ ]</div>
+      <div>2. [ ] [ ] [ ] [ ]</div>
+      <div>3. [ ] [ ] [ ] [ ]</div>
+      <div>4. [ ] [ ] [ ] [ ]</div>
+      <div>5. [ ] [ ] [ ] [ ]</div>
+    </div>
+  </div>
+  
+  <div class="input-cards">
+    <div class="card"></div>
+    <div class="card"></div>
+    <div class="card"></div>
+    <div class="card"></div>
+    <div class="card"></div>
+    <button class="button">Submit</button>
+  </div>
+  
+  <div>
+    <span>(gun image)</span> <span id="ammoCount">0 / 6</span><br>
+    <button class="button" onclick="reload()">Reload</button>
+    <button class="button" onclick="shoot()">Shoot</button>
+  </div>
+</div>
+
+<script>
+  let currentSeed = "";
+  let currentPlayer = "";
+  let ammo = 0;
+
+  function generateSeed() {
+    let numPlayers = document.getElementById("numPlayers").value;
+    if (!numPlayers) {
+      alert("Please select number of players!");
+      return;
+    }
+    currentSeed = Math.random().toString(36).substring(2, 8).toUpperCase() + "-" + numPlayers;
+    document.getElementById("seedOutput").value = currentSeed;
+  }
+
+  function copySeed() {
+    let seed = document.getElementById("seedOutput");
+    if (!seed.value) {
+      alert("No seed to copy! Generate one first.");
+      return;
+    }
+    seed.select();
+    document.execCommand("copy");
+    alert("Seed copied: " + seed.value);
+  }
+
+  function enterGame() {
+    let seedVal = document.getElementById("seedInput").value.trim();
+    let playerNum = document.getElementById("playerNumber").value;
+    
+    if (!seedVal) {
+      alert("Please enter a seed!");
+      return;
+    }
+    if (!playerNum) {
+      alert("Please select your player position!");
+      return;
+    }
+    
+    currentSeed = seedVal;
+    currentPlayer = playerNum;
+    document.getElementById("pageA").classList.remove("active");
+    document.getElementById("pageB").classList.add("active");
+  }
+
+  function toggleMenu() {
+    document.getElementById("quitMenu").classList.toggle("hidden");
+  }
+
+  function quitGame() {
+    document.getElementById("pageB").classList.remove("active");
+    document.getElementById("pageA").classList.add("active");
+    document.getElementById("quitMenu").classList.add("hidden");
+  }
+
+  function reload() {
+    ammo = 6;
+    updateAmmo();
+  }
+
+  function shoot() {
+    if (ammo > 0) {
+      ammo--;
+      updateAmmo();
+    } else {
+      alert("No bullets! Reload first.");
+    }
+  }
+
+  function updateAmmo() {
+    document.getElementById("ammoCount").innerText = ammo + " / 6";
+  }
+</script>
+
+</body>
+</html>
